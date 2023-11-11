@@ -4420,7 +4420,7 @@ with open("C:/Users/Westb/Desktop/Python-Projects/UILib/{name}.json".format(name
 if __name__ == "__main__":
     editor = Editor()
 
-    with open("./.json", "r+") as f:
+    with open("./frc_field.json", "r+") as f:
         data = json.load(f)
 
     poly = Poly3D(
