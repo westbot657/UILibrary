@@ -26,6 +26,8 @@ from mergedeep import merge
 from ctypes import windll, WINFUNCTYPE, POINTER
 from ctypes.wintypes import BOOL, HWND, RECT
 
+from threading import Thread
+
 # import pkgutil
 # import warnings
 # with warnings.catch_warnings():
@@ -181,6 +183,15 @@ def invert_tris(tris):
 
 def angle_between(p1, p2):
     return math.degrees(math.atan2(p2[1] - p1[1], p2[0] - p1[0]))
+
+def distance_between(v1, v2):
+    return math.sqrt(sum((_v-v)**2 for v, _v in zip(v1, v2)))
+
+def scale3D(point, scale):
+    return (point[0]*scale, point[1]*scale, point[2]*scale)
+
+def scale3DV(vertices, scale):
+    return [scale3D(v, scale) for v in vertices]
 
 def warp(surf: pygame.Surface,
          warp_pts,
@@ -1888,7 +1899,7 @@ class Poly3D(UIElement):
     # dist = math.sin(math.radians(90-(FOV/2)))*(width/2)
     dist = (math.sin(math.radians(90-(FOV/2))) * (width/2)) / (math.sin(math.radians(FOV/2)))
     cam_position = [0, 0, -dist]
-    light_angle = [1, 1, -6] # x, y, z vector
+    light_angle = [2, 1, 2] # x, y, z vector
 
     # print(f"{dist=}")
 
@@ -2159,9 +2170,14 @@ class Poly3D(UIElement):
         self.tris = tris
         self.color = color
         self.surfaces = []
+        self._surfaces = []
+        self._surfaces_ready = False
         self.controllers = controllers or []
         self.data = data or {}
         self.texture_mapping = texture_mapping or []
+
+        self.threading_calc = False
+        self.buffer_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA, 32)
 
     def mod_color(self, v1, v2, v3, color=None) -> tuple:
         color = color or self.color
@@ -2180,9 +2196,28 @@ class Poly3D(UIElement):
 
         # print(normal)
 
-        pre = ((normal[0]+self.light_angle[0]) + (normal[1]+self.light_angle[1]) + (normal[1]+self.light_angle[2]))
-        #print(pre)
-        lighting_diff = abs(pre/3) #if pre != 0 else 0
+        dot = ((normal[0]*self.light_angle[0]) + (normal[1]*self.light_angle[1]) + (normal[2]*self.light_angle[2]))
+        mag1 = math.sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2)
+        mag2 = math.sqrt(self.light_angle[0]**2 + self.light_angle[1]**2 + self.light_angle[2]**2)
+
+        d = mag1*mag2
+
+        try:
+            if d != 0:
+
+                diff = dot/d
+
+                angle = math.degrees(math.acos(diff))
+            else:
+                print("LIGTHING ERROR: d == 0!!")
+        except Exception as e:
+            print(f"{d=}, {dot=}, {mag1=}, {mag2=}, {normal=}, {dot/d=}, {diff=}")
+            raise
+
+        lighting_diff = (angle/180)
+
+        # print(pre)
+        # lighting_diff = abs(pre/3) #if pre != 0 else 0
         # lighting_diff = max(abs(normal[0]-self.light_angle[0]), abs(normal[1]-self.light_angle[0]), abs(normal[1]-self.light_angle[0]))
 
         # print(lighting_diff)
@@ -2217,9 +2252,69 @@ class Poly3D(UIElement):
         
         return "c" if (r1 > r2 > r3 or r2 > r3 > r1 or r3 > r1 > r2 ) else "cc"
 
+    def subdivide(self, vertices, projected, division_size=40):
+        """
+        Takes a triangle, and based on it's size, renders it or subdivides it into 4 triangles and subdivides recursively
+        """
+        v1, v2, v3 = vertices
+
+        x1, y1, x2, y2, x3, y3 = projected
+
+        d12 = distance_between(v1, v2)
+        d23 = distance_between(v2, v3)
+        d13 = distance_between(v1, v3)
+
+        mdist = max(d12, d23, d13)
+
+        if mdist > division_size:
+
+            v12 = ((v1[0]+v2[0])/2, (v1[1]+v2[1])/2, (v1[2]+v2[2])/2)
+            v23 = ((v2[0]+v3[0])/2, (v2[1]+v3[1])/2, (v2[2]+v3[2])/2)
+            v13 = ((v1[0]+v3[0])/2, (v1[1]+v3[1])/2, (v1[2]+v3[2])/2)
+
+            x12, y12 = self.project_point(v12)
+            x23, y23 = self.project_point(v23)
+            x13, y13 = self.project_point(v13)
+
+            self.subdivide(
+                (v1, v12, v13), (x1, y1, x12, y12, x13, y13), division_size
+            )
+            self.subdivide(
+                (v2, v23, v12), (x2, y2, x23, y23, x12, y12), division_size
+            )
+            self.subdivide(
+                (v3, v13, v23), (x3, y3, x13, y13, x23, y23), division_size
+            )
+            self.subdivide(
+                (v12, v23, v13), (x12, y12, x23, y23, x13, y13), division_size
+            )
+
+        else:
+            # print("clockwise?")
+            # print(f"{x1=} {x2=} {x3=} {y1=} {y2=} {y3=}")
+            minX = min(x1, x2, x3)
+            maxX = max(x1, x2, x3)
+            minY = min(y1, y2, y3)
+            maxY = max(y1, y2, y3)
+            width = maxX - minX
+            height = maxY - minY
+
+            surface = pygame.Surface((width, height), pygame.SRCALPHA, 32)
+
+            pygame.draw.polygon(surface, self.mod_color(v1, v2, v3), [(x1-minX, y1-minY), (x2-minX, y2-minY), (x3-minX, y3-minY)])
+            
+            # surface = pygame.transform.scale(surface, [2+surface.get_width(), 2+surface.get_height()])
+            # print(f"SURFACE: at {minX}, {minY} ({width}x{height})")
+            if not self._surfaces_ready:
+                self.surfaces.append(((v1[2] + v2[2] + v3[2])/3, surface, minX, minY))
+            self._surfaces.append(((v1[2] + v2[2] + v3[2])/3, surface, minX, minY))
+
+
     def calc_render(self):
         if self.color:
             self.surfaces.clear()
+            self._surfaces.clear()
+            # self._surfaces_ready = False
             for tri in self.tris:
                 v1 = self.vertices[tri[0]]
                 v2 = self.vertices[tri[1]]
@@ -2236,28 +2331,16 @@ class Poly3D(UIElement):
                 r2 = math.degrees(math.atan2(y2 - my, x2 - mx))
                 r3 = math.degrees(math.atan2(y3 - my, x3 - mx))
 
-                if (r1 > r2 > r3 or r2 > r3 > r1 or r3 > r1 > r2) and all(self.cam_position[2] < a for a in [v1[2], v2[2], v3[2]]):
-                    # print("clockwise?")
-                    # print(f"{x1=} {x2=} {x3=} {y1=} {y2=} {y3=}")
-                    minX = min(x1, x2, x3)
-                    maxX = max(x1, x2, x3)
-                    minY = min(y1, y2, y3)
-                    maxY = max(y1, y2, y3)
-                    width = maxX - minX
-                    height = maxY - minY
+                if (r1 > r2 > r3 or r2 > r3 > r1 or r3 > r1 > r2):# and all(self.cam_position[2] < a for a in [v1[2], v2[2], v3[2]]):
 
-                    surface = pygame.Surface((width, height), pygame.SRCALPHA, 32)
-
-                    pygame.draw.polygon(surface,self.mod_color(v1, v2, v3), [(x1-minX, y1-minY), (x2-minX, y2-minY), (x3-minX, y3-minY)])
+                    self.subdivide((v1, v2, v3), (x1, y1, x2, y2, x3, y3), 2) # pass the projected values, cuz they'll be needed anyways
                     
-                    # surface = pygame.transform.scale(surface, [2+surface.get_width(), 2+surface.get_height()])
-                    # print(f"SURFACE: at {minX}, {minY} ({width}x{height})")
-                    self.surfaces.append(((v1[2] + v2[2] + v3[2])/3, surface, minX, minY))
 
-            self.surfaces.sort(
+            self._surfaces.sort(
                 key=lambda a: a[0]
             )
-            self.surfaces.reverse()
+            self._surfaces.reverse()
+            self.surfaces = self._surfaces
         
         if self.texture_mapping:
             s2 = []
@@ -2306,13 +2389,29 @@ class Poly3D(UIElement):
     def _event(self, editor, X, Y):
         for c in self.controllers:
             c(self)
-        self.calc_render()
+
+        if not self.threading_calc:
+            self.threading_calc = True
+            self.t = Thread(target=self.calc_render)
+            self.t.start()
     
     def _update(self, editor, X, Y):
-        for _, surface, x, y in self.surfaces:
+        t = time.time()
+        while self.surfaces:
+            _, surface, x, y = self.surfaces.pop(0)
             pos = (X+x+(self.width/2)-self.cam_position[0], Y+y+(self.height/2)-self.cam_position[1])
-            # print(pos)
-            editor.screen.blit(surface, pos)
+
+            self.buffer_surface.blit(surface, pos)
+
+            if time.time() > t+0.1:
+                break
+
+        # for _, surface, x, y in self.surfaces:
+        #     pos = (X+x+(self.width/2)-self.cam_position[0], Y+y+(self.height/2)-self.cam_position[1])
+        #     # print(pos)
+        #     editor.screen.blit(surface, pos)
+        
+        editor.screen.blit(self.buffer_surface, (0, 0))
 
 class LayeredObjects(UIElement):
     
@@ -3766,235 +3865,235 @@ class ContextTree(UIElement):
                 _x = self.parent.width if X + self.parent.width + self.width < editor.width else -t.width
                 t._event(editor, X + _x, Y + h)
 
-class DirectoryTree(UIElement):
+# class DirectoryTree(UIElement):
     
-    folds = {
-        "open": Image(f"{PATH}/folder_open.png", 0, 0, 14, 14),
-        "closed": Image(f"{PATH}/folder_closed.png", 0, 0, 14, 14)
-    }
-    file_icons = {
-        "default": Image(f"{PATH}/default_file_icon.png", 0, 0, 14, 14),
-        "dungeon_script": Image(f"{PATH}/ds_file_icon.png", 0, 0, 14, 14),
-        "combat": Image(f"{PATH}/combat_file_icon.png", 0, 0, 14, 14),
-        "json": Image(f"{PATH}/json_file_icon.png", 0, 0, 14, 14)
-    }
-    file_icons["ds"] = file_icons["dungeon_script"]
+#     folds = {
+#         "open": Image(f"{PATH}/folder_open.png", 0, 0, 14, 14),
+#         "closed": Image(f"{PATH}/folder_closed.png", 0, 0, 14, 14)
+#     }
+#     file_icons = {
+#         "default": Image(f"{PATH}/default_file_icon.png", 0, 0, 14, 14),
+#         "dungeon_script": Image(f"{PATH}/ds_file_icon.png", 0, 0, 14, 14),
+#         "combat": Image(f"{PATH}/combat_file_icon.png", 0, 0, 14, 14),
+#         "json": Image(f"{PATH}/json_file_icon.png", 0, 0, 14, 14)
+#     }
+#     file_icons["ds"] = file_icons["dungeon_script"]
     
-    __slots__ = [
-        "x", "y", "name", "expanded", "width", "children",
-        "_height", "height", "components", "surface", "folder"
-    ]
+#     __slots__ = [
+#         "x", "y", "name", "expanded", "width", "children",
+#         "_height", "height", "components", "surface", "folder"
+#     ]
     
-    class Folder(UIElement):
+#     class Folder(UIElement):
         
-        __slots__ = [
-            "parent", "name", "width", "components", "collapsed", "height", "_height",
-            "hitbox", "fold_arrow", "label"
-        ]
+#         __slots__ = [
+#             "parent", "name", "width", "components", "collapsed", "height", "_height",
+#             "hitbox", "fold_arrow", "label"
+#         ]
         
-        def __init__(self, name, width, components, parent, collapsed:bool=True):
-            self.parent = parent
-            self.name = name
-            self.width = width
-            self.components = components
-            self.collapsed = collapsed
-            self.height = 15
-            self._height = 15
+#         def __init__(self, name, width, components, parent, collapsed:bool=True):
+#             self.parent = parent
+#             self.name = name
+#             self.width = width
+#             self.components = components
+#             self.collapsed = collapsed
+#             self.height = 15
+#             self._height = 15
             
-            self.hitbox = Button(0, 0, width, 15)
-            self.fold_arrow = DirectoryTree.folds["closed" if collapsed else "open"]
-            self.label = Text(14, -1, width-14, name, text_size=12, text_bg_color=None)
+#             self.hitbox = Button(0, 0, width, 15)
+#             self.fold_arrow = DirectoryTree.folds["closed" if collapsed else "open"]
+#             self.label = Text(14, -1, width-14, name, text_size=12, text_bg_color=None)
             
-            self.hitbox.on_left_click = self._toggle
+#             self.hitbox.on_left_click = self._toggle
             
-        def get_expanded(self) -> dict:
-            if self.collapsed: return {}
+#         def get_expanded(self) -> dict:
+#             if self.collapsed: return {}
 
-            d = {}
+#             d = {}
 
-            for f in self.components:
-                if isinstance(f, DirectoryTree.Folder):
-                    d.update(f.get_expanded())
+#             for f in self.components:
+#                 if isinstance(f, DirectoryTree.Folder):
+#                     d.update(f.get_expanded())
 
-            return {self.name: d}
+#             return {self.name: d}
         
-        def expand_tree(self, tree):
-            if self.collapsed:
-                self._toggle(None)
+#         def expand_tree(self, tree):
+#             if self.collapsed:
+#                 self._toggle(None)
                 
-            for f in self.components:
-                if isinstance(f, DirectoryTree.Folder) and (f.name in tree.keys()):
-                    f.expand_tree(tree[f.name])
+#             for f in self.components:
+#                 if isinstance(f, DirectoryTree.Folder) and (f.name in tree.keys()):
+#                     f.expand_tree(tree[f.name])
 
 
 
-        def _toggle(self, editor): # "editor" is an argument as it is passed by the button this function is bound to
-            # print("toggle fold!")
-            self.collapsed = not self.collapsed
-            self.fold_arrow = DirectoryTree.folds["closed" if self.collapsed else "open"]
+#         def _toggle(self, editor): # "editor" is an argument as it is passed by the button this function is bound to
+#             # print("toggle fold!")
+#             self.collapsed = not self.collapsed
+#             self.fold_arrow = DirectoryTree.folds["closed" if self.collapsed else "open"]
         
-        def _update(self, editor, X, Y, x_offset=0):
-            self.fold_arrow._update(editor, X+x_offset, Y)
-            self.label._update(editor, X+x_offset, Y)
-            if self.collapsed:
-                self.height = self._height
-            else:
-                self.height = self._height
-                for component in self.components:
-                    component: DirectoryTree.Folder | DirectoryTree.File
-                    component._update(editor, X, Y+self.height, x_offset+10)
-                    self.height += component.height
+#         def _update(self, editor, X, Y, x_offset=0):
+#             self.fold_arrow._update(editor, X+x_offset, Y)
+#             self.label._update(editor, X+x_offset, Y)
+#             if self.collapsed:
+#                 self.height = self._height
+#             else:
+#                 self.height = self._height
+#                 for component in self.components:
+#                     component: DirectoryTree.Folder | DirectoryTree.File
+#                     component._update(editor, X, Y+self.height, x_offset+10)
+#                     self.height += component.height
         
-        def _event(self, editor, X, Y, x_offset=0):
+#         def _event(self, editor, X, Y, x_offset=0):
             
-            self.hitbox._event(editor, X, Y)
-            # self.fold_arrow._event(editor, X+x_offset, Y)
+#             self.hitbox._event(editor, X, Y)
+#             # self.fold_arrow._event(editor, X+x_offset, Y)
             
-            if self.collapsed:
-                self.height = self._height
-            else:
-                self.height = self._height
-                for component in self.components:
-                    component: DirectoryTree.Folder | DirectoryTree.File
-                    component._event(editor, X, Y+self.height, x_offset+10)
-                    self.height += component.height
+#             if self.collapsed:
+#                 self.height = self._height
+#             else:
+#                 self.height = self._height
+#                 for component in self.components:
+#                     component: DirectoryTree.Folder | DirectoryTree.File
+#                     component._event(editor, X, Y+self.height, x_offset+10)
+#                     self.height += component.height
 
-    class File(UIElement):
+#     class File(UIElement):
         
-        __slots__ = [
-            "parent", "name", "width", "on_click", "icon", "height",
-            "hitbox", "label"#, "rct"
-        ]
+#         __slots__ = [
+#             "parent", "name", "width", "on_click", "icon", "height",
+#             "hitbox", "label"#, "rct"
+#         ]
         
-        def __init__(self, name, on_click, icon, width, parent):
-            self.parent = parent
-            self.name = name
-            self.width = width
-            self.on_click = on_click
-            self.icon = DirectoryTree.file_icons[icon]
-            self.height = 15
+#         def __init__(self, name, on_click, icon, width, parent):
+#             self.parent = parent
+#             self.name = name
+#             self.width = width
+#             self.on_click = on_click
+#             self.icon = DirectoryTree.file_icons[icon]
+#             self.height = 15
             
-            self.hitbox = Button(0, 0, width, 15, "", (255, 0, 0))
-            self.label = Text(14, -1, width-14, name, text_size=12, text_bg_color=None)
+#             self.hitbox = Button(0, 0, width, 15, "", (255, 0, 0))
+#             self.label = Text(14, -1, width-14, name, text_size=12, text_bg_color=None)
 
-            # self.ctx_tree_opts = (20, TEXT_COLOR, TEXT_BG_COLOR, (70, 70, 70), TEXT_SIZE, (50, 50, 50), (50, 50, 50))
-            # self.top_bar_file = ContextTree.new(
-            #     20, 0, 40, 20, "File", [
-            #         {
-            #             "New File...": self.top_bar_file_new_file
-            #         },
-            #         ContextTree.Line(),
-            #         {
-            #             "Open File...": self.top_bar_file_open_file,
-            #             "Open Folder...": self.top_bar_file_open_folder
-            #         },
-            #         ContextTree.Line(),
-            #         {
-            #             "Save": self.top_bar_file_save,
-            #             "Save All": self.top_bar_file_save_all
-            #         },
-            #         ContextTree.Line(),
-            #         {
-            #             "Exit": self.top_bar_file_exit
-            #         }
-            #     ], 115, *self.ctx_tree_opts
-            # )
+#             # self.ctx_tree_opts = (20, TEXT_COLOR, TEXT_BG_COLOR, (70, 70, 70), TEXT_SIZE, (50, 50, 50), (50, 50, 50))
+#             # self.top_bar_file = ContextTree.new(
+#             #     20, 0, 40, 20, "File", [
+#             #         {
+#             #             "New File...": self.top_bar_file_new_file
+#             #         },
+#             #         ContextTree.Line(),
+#             #         {
+#             #             "Open File...": self.top_bar_file_open_file,
+#             #             "Open Folder...": self.top_bar_file_open_folder
+#             #         },
+#             #         ContextTree.Line(),
+#             #         {
+#             #             "Save": self.top_bar_file_save,
+#             #             "Save All": self.top_bar_file_save_all
+#             #         },
+#             #         ContextTree.Line(),
+#             #         {
+#             #             "Exit": self.top_bar_file_exit
+#             #         }
+#             #     ], 115, *self.ctx_tree_opts
+#             # )
 
-            # self.rct = ContextTree([
-            #     {
-            #         "Rename... (WIP)": self.rename_opt,
-            #         "Delete": self.delete_opt
-            #     }
-            # ], 115, 20)
+#             # self.rct = ContextTree([
+#             #     {
+#             #         "Rename... (WIP)": self.rename_opt,
+#             #         "Delete": self.delete_opt
+#             #     }
+#             # ], 115, 20)
 
-            # self.rct.parent = self
+#             # self.rct.parent = self
 
-            self.hitbox.on_left_click = on_click
-            # self.hitbox.on_right_click = self.rct
-            # self.children.append(self.rct)
+#             self.hitbox.on_left_click = on_click
+#             # self.hitbox.on_right_click = self.rct
+#             # self.children.append(self.rct)
             
-        # def rename_opt(self, *_, **__):
-        #     print("rename!")
+#         # def rename_opt(self, *_, **__):
+#         #     print("rename!")
         
-        # def delete_opt(self, *_, **__):
-        #     print("delete!")
+#         # def delete_opt(self, *_, **__):
+#         #     print("delete!")
 
-        def _update(self, editor, X, Y, x_offset=0):
-            # self.hitbox._update(editor, X, Y)
-            self.icon._update(editor, X+x_offset, Y)
-            self.label._update(editor, X+x_offset, Y)
-            # self.rct._update(editor, X+x_offset, Y)
+#         def _update(self, editor, X, Y, x_offset=0):
+#             # self.hitbox._update(editor, X, Y)
+#             self.icon._update(editor, X+x_offset, Y)
+#             self.label._update(editor, X+x_offset, Y)
+#             # self.rct._update(editor, X+x_offset, Y)
         
-        def _event(self, editor, X, Y, x_offset=0):
-            self.hitbox._event(editor, X, Y)
-            # self.label.width
-            # self.rct._event(editor, X+x_offset, Y)
+#         def _event(self, editor, X, Y, x_offset=0):
+#             self.hitbox._event(editor, X, Y)
+#             # self.label.width
+#             # self.rct._event(editor, X+x_offset, Y)
 
-    def _get_icon_for_file(self, file_name):
-        if file_name.endswith((".ds", ".dungeon_script")):
-            return "ds"
-        elif file_name.endswith(".combat"):
-            return "combat"
-        elif file_name.endswith(".json"):
-            return "json"
-        return "default"
+#     def _get_icon_for_file(self, file_name):
+#         if file_name.endswith((".ds", ".dungeon_script")):
+#             return "ds"
+#         elif file_name.endswith(".combat"):
+#             return "combat"
+#         elif file_name.endswith(".json"):
+#             return "json"
+#         return "default"
 
-    def parse_components(self, name, tree, parent):
-        if isinstance(tree, dict):
-            comps = []
-            for k, v in tree.items():
-                comps.append(self.parse_components(k, v, parent))
-            return DirectoryTree.Folder(name, self.width, comps, parent)
-        else:
-            return DirectoryTree.File(name, tree, self._get_icon_for_file(name), self.width, parent)
+#     def parse_components(self, name, tree, parent):
+#         if isinstance(tree, dict):
+#             comps = []
+#             for k, v in tree.items():
+#                 comps.append(self.parse_components(k, v, parent))
+#             return DirectoryTree.Folder(name, self.width, comps, parent)
+#         else:
+#             return DirectoryTree.File(name, tree, self._get_icon_for_file(name), self.width, parent)
 
-    def __init__(self, x, y, name, components:dict, width, editor):
-        self.x = x
-        self.y = y
-        self.name = name
-        self.expanded = False
-        self.width = width
-        self.children = []
+#     def __init__(self, x, y, name, components:dict, width, editor):
+#         self.x = x
+#         self.y = y
+#         self.name = name
+#         self.expanded = False
+#         self.width = width
+#         self.children = []
         
-        self._height = 0
-        self.height = 0
+#         self._height = 0
+#         self.height = 0
         
-        self.components = []
-        for name, comp in components.items():
-            self.components.append(self.parse_components(name, comp, self))
+#         self.components = []
+#         for name, comp in components.items():
+#             self.components.append(self.parse_components(name, comp, self))
         
-        self.surface = Scrollable(self.x, self.y, 225, editor.height-42, (24, 24, 24), left_bound=0, top_bound = 0)
-        self.children.append(self.surface)
+#         self.surface = Scrollable(self.x, self.y, 225, editor.height-42, (24, 24, 24), left_bound=0, top_bound = 0)
+#         self.children.append(self.surface)
         
-        self.folder = DirectoryTree.Folder(self.name, width, self.components, self, False)
-        self.surface.children.append(self.folder)
+#         self.folder = DirectoryTree.Folder(self.name, width, self.components, self, False)
+#         self.surface.children.append(self.folder)
 
-    def get_expanded(self):
-        return self.folder.get_expanded()
+#     def get_expanded(self):
+#         return self.folder.get_expanded()
 
-    def expand_tree(self, tree):
-        self.folder.expand_tree(tree["DUNGEONS"])
+#     def expand_tree(self, tree):
+#         self.folder.expand_tree(tree["DUNGEONS"])
 
-    def _update_layout(self, editor):
-        self.surface.height = editor.height-42
+#     def _update_layout(self, editor):
+#         self.surface.height = editor.height-42
 
-    def _update(self, editor, X, Y):
+#     def _update(self, editor, X, Y):
         
-        # print("dir tree update!")
+#         # print("dir tree update!")
         
-        # self.surface._update(editor, X, Y)
+#         # self.surface._update(editor, X, Y)
         
-        for child in self.children:
-            child._update(editor, X, Y)
+#         for child in self.children:
+#             child._update(editor, X, Y)
     
-    def _event(self, editor, X, Y):
+#     def _event(self, editor, X, Y):
         
-        _c = self.children.copy()
-        _c.reverse()
-        for child in _c:
-            child._event(editor, X, Y)
+#         _c = self.children.copy()
+#         _c.reverse()
+#         for child in _c:
+#             child._event(editor, X, Y)
         
-        # self.surface._event(editor, X + self.x, Y + self.y)
+#         # self.surface._event(editor, X + self.x, Y + self.y)
 
 class Popup(UIElement):
     _popup = None
@@ -4078,7 +4177,7 @@ class Popup(UIElement):
         
 
 class Editor:
-    def __init__(self, engine, io_hook, width=1280, height=720) -> None:
+    def __init__(self, width=1280, height=720) -> None:
         self.screen:pygame.Surface = None
         # self.window = Window.from_display_module()
         self.previous_mouse = [False, False, False]
@@ -4153,7 +4252,7 @@ class Editor:
 
     def run(self):
         #pygame.init()
-        self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE | pygame.NOFRAME) # pylint: disable=no-member
+        self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)# | pygame.NOFRAME) # pylint: disable=no-member
 
         # pygame.display.set_icon(pygame.image.load(f"{PATH}/dungeon_game_icon.png"))
         # pygame.display.set_caption("Insert Dungeon Name Here")
@@ -4242,3 +4341,111 @@ class Editor:
 
             # print(self._hovering)
             pygame.display.update()
+
+
+def rotater(poly3d):
+    poly3d.vertices = [rotate3D(poly3d.data["origin"], v, poly3d.data["rotations"]) for v in poly3d.vertices]
+
+def color_shifter(poly3d):
+    if poly3d.data["r_shift"] == "up":
+        poly3d.color[0] += 1
+        if poly3d.color[0] >= 255:
+            poly3d.data["r_shift"] = "down"
+    elif poly3d.data["r_shift"] == "down":
+        poly3d.color[0] -= 1
+        if poly3d.color[0] <= 0:
+            poly3d.data["r_shift"] = "up"
+    
+    if poly3d.data["g_shift"] == "up":
+        poly3d.color[1] += 1
+        if poly3d.color[1] >= 255:
+            poly3d.data["g_shift"] = "down"
+    elif poly3d.data["g_shift"] == "down":
+        poly3d.color[1] -= 1
+        if poly3d.color[1] <= 0:
+            poly3d.data["g_shift"] = "up"
+    
+    if poly3d.data["b_shift"] == "up":
+        poly3d.color[2] += 1
+        if poly3d.color[2] >= 255:
+            poly3d.data["b_shift"] = "down"
+    elif poly3d.data["b_shift"] == "down":
+        poly3d.color[2] -= 1
+        if poly3d.color[2] <= 0:
+            poly3d.data["b_shift"] = "up"
+
+def mover(poly3d):
+    if poly3d.data["move"] == "left":
+        poly3d.vertices = [(v[0]-1, *v[1:3]) for v in poly3d.vertices]
+        if min(v[0] for v in poly3d.vertices) <= -800:
+            poly3d.data["move"] = "right"
+    elif poly3d.data["move"] == "right":
+        poly3d.vertices = [(v[0]+1, *v[1:3]) for v in poly3d.vertices]
+        if max(v[0] for v in poly3d.vertices) >= 800:
+            poly3d.data["move"] = "left"
+
+
+"""
+# Poly3D vertices/triangles blender script:
+
+import bpy, json
+
+current_obj = bpy.context.active_object
+verts_local = [v.co for v in current_obj.data.vertices.values()]
+
+data = {
+    "vertices": [],
+    "tris": []
+}
+
+for v in verts_local:
+    data["vertices"].append(v[0:3])
+
+for i, face in enumerate(current_obj.data.polygons):
+    verts_indices = face.vertices[:]
+    if len(verts_indices) == 3:
+        data["tris"].append(tuple(verts_indices))
+    elif len(verts_indices) == 4:
+        data["tris"].append((verts_indices[0:3]))
+        data["tris"].append((verts_indices[0], *verts_indices[2:4]))
+    elif len(verts_indices) > 4:
+        print("bad \"triangle\"! you're only supposed to have 3 or 4 indices, not {l}!?!".format(l=len(verts_indices)))
+
+with open("C:/Users/Westb/Desktop/Python-Projects/UILib/{name}.json".format(name=current_obj.name), "w+", encoding="utf-8") as f:
+    json.dump(data, f)
+
+
+"""
+
+if __name__ == "__main__":
+    editor = Editor()
+
+    with open("./.json", "r+") as f:
+        data = json.load(f)
+
+    poly = Poly3D(
+        scale3DV([[p[0]-0.01, p[1]+0.01, p[2]] for p in rotate3DV((0, 0, 0), data["vertices"], [(90, 0, 0), (0, 45, 0), (35, 0, 0)])], 2000),
+        data["tris"],
+        [int(255*2/3), int(255*2/3), int(255/3)],
+        [color_shifter],
+        {
+            "r_shift": "down",
+            "g_shift": "up",
+            "b_shift": "up"
+        }
+        
+        # [rotater],
+        # {
+        #     "origin": [-100, 100, 0],
+        #     "rotations": [(-35, 0, 0), (0, 0.05, 0), (35, 0, 0)]
+        # }
+    )
+
+    editor.add_layer(
+        0,
+        *[
+            poly
+        ]
+    )
+
+    editor.run()
