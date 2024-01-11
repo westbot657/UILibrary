@@ -2336,7 +2336,7 @@ class Poly3D(UIElement):
 
                 if (r1 > r2 > r3 or r2 > r3 > r1 or r3 > r1 > r2):# and all(self.cam_position[2] < a for a in [v1[2], v2[2], v3[2]]):
 
-                    self.subdivide((v1, v2, v3), (x1, y1, x2, y2, x3, y3), 100) # pass the projected values, cuz they'll be needed anyways
+                    self.subdivide((v1, v2, v3), (x1, y1, x2, y2, x3, y3), 10) # pass the projected values, cuz they'll be needed anyways
                     
 
             self._surfaces.sort(
@@ -4427,13 +4427,13 @@ with open("C:/Users/Westb/Desktop/Python-Projects/UILib/{name}.json".format(name
 if __name__ == "__main__":
     editor = Editor()
 
-    with open("./GE-23000.json", "r+") as f:
+    with open("./Full Assembly.json", "r+") as f:
         data = json.load(f)
 
     poly = Poly3D(
         scale3DV(
-            [[p[0]-3, p[1]+2, p[2]] for p in rotate3DV((0, 0, 0), data["vertices"], [(180, 0, 0), (0, 45, 0), (35, 0, 0)])],
-            80
+            [[p[0]-0.1, p[1]+0.4, p[2]] for p in rotate3DV((0, 0, 0), data["vertices"], [(90, 0, 0), (0, 45, 0), (35, 0, 0)])],
+            200
         ),
         data["tris"],
         [int(255*2/3), int(255*2/3), int(255/3)],
