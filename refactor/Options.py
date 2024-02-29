@@ -3,12 +3,6 @@
 
 import json
 
-# discord presence application id
-client_id = "1149136139341541446"
-
-
-DO_RICH_PRESENCE = False
-
 
 PATH = "./ui_resources"
 FONT = f"{PATH}/PTMono-Regular.ttf" # PTMono-Regular has correct lineup for │ and ┼!

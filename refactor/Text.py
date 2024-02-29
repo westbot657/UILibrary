@@ -14,6 +14,10 @@ class Text(UIElement):
     ]
 
     def __init__(self, x:int, y:int, min_width:int=1, content:str="", text_color:Color|tuple|int=TEXT_COLOR, text_bg_color:Color|tuple|int=TEXT_BG_COLOR, text_size:int=TEXT_SIZE):
+        """
+        newlines are NOT supported (use MultilineTextBox instead)
+        
+        """
         assert min_width >= 1, "Min width must be 1 or more"
         self.x = x
         self.y = y
@@ -26,7 +30,11 @@ class Text(UIElement):
         self.surface = self.font.render(self.content, True, tuple(self.text_color))
         self.width, self.height = self.surface.get_size()
 
-    def set_text(self, text:str):
+    def set_text(self, text:str) -> None:
+        """
+        sets the Text objects displayed text.
+        Does NOT support newlines (use MultilineTextBox instead)
+        """
         self.content = text
 
     def _event(self, *_):

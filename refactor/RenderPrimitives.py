@@ -8,10 +8,10 @@ import time
 class Color(list):
     __slots__ = ["r", "g", "b", "a"]
     def __init__(self, r, g, b, a=None):
-        self.r = r
-        self.g = g
-        self.b = b
-        self.a = a
+        self.r = min(max(0, r), 255)
+        self.g = min(max(0, g), 255)
+        self.b = min(max(0, b), 255)
+        self.a = min(max(0, a), 255) if a else None
     def with_alpha(self):
         if self.a:
             return Color(self.r, self.g, self.b, self.a)
@@ -48,7 +48,7 @@ class Color(list):
         if isinstance(obj, (Image, Animation)) and allow_image:
             return obj
         elif isinstance(obj, (Image, Animation)):
-            raise Exception(f"Color cannot be an image/animation")
+            raise ValueError(f"Color cannot be an image/animation")
         if isinstance(obj, Color):
             return obj
         elif isinstance(obj, (list, tuple)) and len(obj) in (3, 4):
@@ -64,7 +64,6 @@ class Color(list):
             return cls(r, g, b, a)
         else:
             raise ValueError(f"Invalid Color! ({obj})")
-
 
 
 class Image(UIElement):
@@ -125,8 +124,8 @@ class Image(UIElement):
 
     def scale(self, amnt:float):
         
-        self.width *= amnt
-        self.height *= amnt
+        self.width = int(self.width * amnt)
+        self.height = int(self.height * amnt)
         self._width = self.width
         self._height = self.height
         self.surface = pygame.transform.scale(self._surface, (self.width, self.height))

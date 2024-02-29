@@ -44,30 +44,32 @@ class TextBox(UIElement):
         #self._highlight.fill(TEXT_HIGHLIGHT)
         self.highlight = self._highlight.copy()
 
-    def get_selection(self):
+    def get_selection(self) -> str|None:
         if self._text_selection_start and self._text_selection_end:
             a = min(self._text_selection_start, self._text_selection_end)
             b = max(self._text_selection_start, self._text_selection_end)
             return self.get_content()[a:b]
         return None
 
-    def set_selection(self, text:str):
+    def set_selection(self, text:str) -> None:
         if self._text_selection_start and self._text_selection_end:
             a = min(self._text_selection_start, self._text_selection_end)
             b = max(self._text_selection_start, self._text_selection_end)
             content = self.get_content()
             pre = content[0:a]
             post = content[b-1:]
-            self.set_content(pre + text + post)
+            self.set_content((pre + text + post).replace("\n", " "))
             self._text_selection_start = self._text_selection_end = None
 
-    def get_content(self):
+    def get_content(self) -> str:
         return "".join(self._letters)
 
-    def set_content(self, content:str=""):
-        self._letters = [l for l in content]
+    def set_content(self, content:str="") -> None:
+        self._letters = [l if l != "\n" else " " for l in content if]
         #self.surface = self.font.render(content, True, self.text_color)
         self.cursor_location = min(self.cursor_location, len(self._letters))
+        self._text_selection_start = self._text_selection_end = None
+
 
     def refresh_highlight(self):
         if self._text_selection_start and self._text_selection_end:

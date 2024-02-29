@@ -16,13 +16,6 @@ import random
 # 3D rendering
 from shapely.geometry.polygon import Polygon as Poly
 
-# used to import the game engine with code
-import importlib
-from importlib.machinery import SourceFileLoader
-
-# discord presence for game
-from pypresence import Presence
-
 # Things needed to move and resize pygame window
 import mouse
 from ctypes import windll, WINFUNCTYPE, POINTER
@@ -31,9 +24,8 @@ from win32api import GetMonitorInfo, MonitorFromPoint # pylint: disable=no-name-
 from pygame._sdl2.video import Window, Texture # pylint: disable=no-name-in-module
 
 # import components
-from Options import client_id, DO_RICH_PRESENCE, PATH, \
-    FONT, SETTINGS, TEXT_SIZE, TEXT_COLOR, TEXT_BG_COLOR, \
-    TEXT_HIGHLIGHT, TAB_SIZE
+from Options import PATH, FONT, SETTINGS, TEXT_SIZE, \
+    TEXT_COLOR, TEXT_BG_COLOR, TEXT_HIGHLIGHT, TAB_SIZE
 from Util import expand_text_lists, \
     rotate, rotate3D, rotate3DV, \
     quad_to_tris, invert_tris, \
@@ -70,13 +62,13 @@ class ContextTree(UIElement):
     def new(cls, x, y, width, height, label, *args, **kwargs) -> Button:
         """See ContextTree.__init__() for args/kwargs"""
         _m = cls(*args, **kwargs)
-        m = Button(x, y, width, height, label, hover_color=(50, 50, 50), click_color=(50, 50, 50))
+        m = Button(x, y, width, height, label, hover_color=SETTINGS["button_hover_color"], click_color=SETTINGS["button_hover_color"])
         m.on_left_click = _m
         _m.parent = m
         m.children.append(_m)
         return m
     
-    def __init__(self, tree_fields, width, option_height, text_color=TEXT_COLOR, bg_color=TEXT_BG_COLOR, line_color=(70, 70, 70), text_size=TEXT_SIZE, hover_color=TEXT_BG_COLOR, click_color=TEXT_BG_COLOR):
+    def __init__(self, tree_fields, width, option_height, text_color=TEXT_COLOR, bg_color=TEXT_BG_COLOR, line_color=SETTINGS["line_seperator_color"], text_size=TEXT_SIZE, hover_color=TEXT_BG_COLOR, click_color=TEXT_BG_COLOR):
         self.visible = False
         self.width = width
         self.option_height = option_height
@@ -287,7 +279,7 @@ class DirectoryTree(UIElement):
         for name, comp in components.items():
             self.components.append(self.parse_components(name, comp, self))
         
-        self.surface = Scrollable(self.x, self.y, 225, editor.height-42, (24, 24, 24), left_bound=0, top_bound = 0)
+        self.surface = Scrollable(self.x, self.y, 225, editor.height-42, TEXT_BG_COLOR, left_bound=0, top_bound = 0)
         self.children.append(self.surface)
         self.folder = DirectoryTree.Folder(self.name, width, self.components, self, False)
         self.surface.children.append(self.folder)
@@ -318,9 +310,9 @@ class Popup(UIElement):
         self.width = width
         self.height = height
         self.children = []
-        self.mask = Button(0, 20, 1, 1, "", (0, 0, 0, 127), hover_color=(0, 0, 0, 127))
+        self.mask = Button(0, 20, 1, 1, "", SETTINGS["popup_fade_color"], hover_color=SETTINGS["popup_fade_color"])
         self.mask.on_left_click = self._mask_on_click
-        self.bg = Button(0, 0, self.width, self.height, bg_color=(24, 24, 24), hover_color=(24, 24, 24))
+        self.bg = Button(0, 0, self.width, self.height, bg_color=TEXT_BG_COLOR, hover_color=TEXT_BG_COLOR)
         self._on_close = self._default_on_close
         self.x = 0
         self.y = 0
@@ -384,7 +376,7 @@ class Popup(UIElement):
 
 class Editor:
 
-    def __init__(self, caption, icon=None, width=1280, height=720) -> None:
+    def __init__(self, caption, icon=None, width=SETTINGS["start_resolution"][0], height=SETTINGS["start_resolution"][1]) -> None:
         self.screen:pygame.Surface = None
         self.caption = caption
         self.icon = icon
@@ -560,7 +552,7 @@ class FileEditor(UIElement):
         with open(self.file_location, "r+", encoding="utf-8") as f:
             self.contents = f.read()
         
-        self.edit_area = NumberedTextArea(self.x, self.y, self.width, self.height, text_bg_color=(31, 31, 31), scroll_speed=45)
+        self.edit_area = NumberedTextArea(self.x, self.y, self.width, self.height, text_bg_color=SETTINGS["text_bg_color_lighter"], scroll_speed=45)
         self.edit_area.set_content(self.contents)
         self.edit_area.editable.save_history()
         self.edit_area.editable.on_save(self.save_file)
@@ -707,34 +699,38 @@ class WindowFrame(UIElement):
         self.resolution = [width, height]
         self.children = []
         self.editor = editor
-        self.hover_color = (50, 50, 50)
-        self.click_button = (70, 70, 70)
+
+        self.window_size_limits = (100, 100, 1920, 1080)
+
         self.window_drag_offset = None
         self.selected_drag = ""
         self.drag_offset = 0
         self._recent_window_pos = (int((1920 - (1920*2/4))/2), int((1080 - (1080*2/4))/2))
         self._recent_window_size = (1920*2/4, 1080*2/4)
-        self.bottom_drag = Box(5, height-5, width-10, 5, (24, 24, 24))
+        self.bottom_drag = Box(5, height-5, width-10, 5, TEXT_BG_COLOR)
         self.children.append(self.bottom_drag)
-        self.bottom_right_drag = Box(width-5, height-5, 5, 5, (24, 24, 24))
+        self.bottom_right_drag = Box(width-5, height-5, 5, 5, TEXT_BG_COLOR)
         self.children.append(self.bottom_right_drag)
-        self.bottom_left_drag = Box(0, height-5, 5, 5, (24, 24, 24))
+        self.bottom_left_drag = Box(0, height-5, 5, 5, TEXT_BG_COLOR)
         self.children.append(self.bottom_left_drag)
-        self.left_drag = Box(0, 20, 5, height-25, (24, 24, 24))
+        self.left_drag = Box(0, 20, 5, height-25, TEXT_BG_COLOR)
         self.children.append(self.left_drag)
-        self.right_drag = Box(width-5, 20, 5, height-25, (24, 24, 24))
+        self.right_drag = Box(width-5, 20, 5, height-25, TEXT_BG_COLOR)
         self.children.append(self.right_drag)
-        self.top_bar_line = Box(0, 20, width, 1, (70, 70, 70))
+        self.top_bar_line = Box(0, 20, width, 1, SETTINGS["button_hover_color"])
         self.children.append(self.top_bar_line)
-        self.bottom_bar = Box(5, height-20, width-10, 15, (24, 24, 24))
+        self.bottom_bar = Box(5, height-20, width-10, 15, TEXT_BG_COLOR)
         self.children.append(self.bottom_bar)
-        self.bottom_bar_line = Box(0, height-21, width, 1, (70, 70, 70))
+        self.bottom_bar_line = Box(0, height-21, width, 1, SETTINGS["button_hover_color"])
         self.children.append(self.bottom_bar_line)
-        self.top_bar = Box(0, 0, width, 20, Color(24, 24, 24))
+        self.top_bar = Box(0, 0, width, 20, TEXT_BG_COLOR)
         self.children.append(self.top_bar)
-        self.top_bar_icon = Image(f"{PATH}/dungeon_game_icon.png", 2, 2, 16, 16)
+        if editor.icon:
+            self.top_bar_icon = Image(editor.icon, 2, 2, 16, 16)
+        else:
+            self.top_bar_icon = Image(f"{PATH}/ui_lib_icon.png", 2, 2, 16, 16)
         self.children.append(self.top_bar_icon)
-        self.minimize_button = Button(width-(26*3), 0, 26, 20, " ─ ", (24, 24, 24), hover_color=(70, 70, 70))
+        self.minimize_button = Button(width-(26*3), 0, 26, 20, " ─ ", TEXT_BG_COLOR, hover_color=SETTINGS["button_hover_color"])
         self.minimize_button.on_left_click = self.minimize
         self.children.append(self.minimize_button)
         self._is_fullscreen = False
@@ -751,8 +747,12 @@ class WindowFrame(UIElement):
         self.close_button.on_left_click = self.close_window
         self.children.append(self.close_button)
 
+    def set_size_constraints(self, minX, minY, maxX, maxY):
+        if minX >= maxX: raise ValueError("minX must be smaller than maxX")
+        if minY >= maxY: raise ValueError("minY must be smaller than maxY")
+        self.window_size_limits = (minX, minY, maxX, maxY)
+
     def minimize(self, *_, **__):
-        # RPC.update(details="Made the window smol 4 some reason", state="¯\_(ツ)_/¯")
         pygame.display.iconify()
 
     def get_screen_pos(self, editor):
@@ -795,7 +795,6 @@ class WindowFrame(UIElement):
 
     def close_window(self, editor):
         editor.running = False
-        editor.engine.stop()
         pygame.display.quit()
         pygame.quit()
         sys.exit()
@@ -835,10 +834,11 @@ class WindowFrame(UIElement):
             x, y = mouse.get_position()
             
             if y == 0:
-                self._is_fullscreen = True
-                self._recent_window_size = (editor.width, editor.height)
-                self._recent_window_pos = self.get_screen_pos(editor)
-                self.set_fullscreen(editor)
+                self._is_fullscreen = False
+                self.toggle_fullscreen(editor)
+                # self._recent_window_size = (editor.width, editor.height)
+                # self._recent_window_pos = self.get_screen_pos(editor)
+                # self.set_fullscreen(editor)
             
             self.window_drag_offset = None
 
@@ -881,16 +881,16 @@ class WindowFrame(UIElement):
             pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
 
         if self.selected_drag in ["bottom_drag", "bottom_right_drag", "bottom_left_drag"]:
-            editor.height = max(425, rmy - rsy)
+            editor.height = min(max(self.window_size_limits[1], rmy - rsy), self.window_size_limits[3])
             self._update_layout(editor)
 
         if self.selected_drag in ["left_drag", "bottom_left_drag"]:
-            editor.set_window_location(min (rmx, self.drag_offset[0]-100), self.drag_offset[1])
-            editor.width = max(800, self.drag_offset[0] - rmx)
+            editor.set_window_location(min(rmx, self.drag_offset[0]-100), self.drag_offset[1])
+            editor.width = min(max(self.window_size_limits[0], self.drag_offset[0] - rmx), self.window_size_limits[2])
             self._update_layout(editor)
 
         if self.selected_drag in ["right_drag", "bottom_right_drag"]:
-            editor.width = max(800, rmx - rsx)
+            editor.width = min(max(self.window_size_limits[0], rmx - rsx), self.window_size_limits[2])
             self._update_layout(editor)
 
         if (not editor.mouse[0]) and editor.previous_mouse[0]:
@@ -955,7 +955,7 @@ if __name__ == "__main__":
     # from threading import Thread
     # import traceback
 
-    editor = Editor("App name", None) # name, icon location
+    editor = Editor("App name", None, *SETTINGS["start_resolution"]) # name, icon location, width, height
     
     # def inp_thread():
     #     while not editor.running: pass
@@ -974,4 +974,12 @@ if __name__ == "__main__":
     # editor.layers[0] += [
     #     c
     # ]
+
+
+    frame = WindowFrame(*SETTINGS["start_resolution"], editor)
+
+    editor.layers[0] += [
+        frame
+    ]
+
     editor.run()
