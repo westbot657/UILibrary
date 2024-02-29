@@ -203,6 +203,7 @@ class Animation(UIElement):
         self.x = x
         self.y = y
         if "sprite_sheet" in options:
+            self.config_type = "spritesheet_config"
             self.sprite_sheet = self.source = options.get("sprite_sheet")
             self.sprite_width = options.get("sprite_width", None)
             self.sprite_height = options.get("sprite_height", None)
@@ -241,6 +242,7 @@ class Animation(UIElement):
                 y += self.sprite_height
 
         elif "frames" in options:
+            self.config_type = "frames_config"
             self.frames = self.source = options.get("frames")
 
             self._frames = []
@@ -260,6 +262,7 @@ class Animation(UIElement):
                 raise ValueError(f"File not found: {err}")
 
         elif "custom" in options:
+            self.config_type = "custom_config"
             self._frames = options.get("custom")
             self.sprite_width, self.sprite_height = self._frames[0].get_size()
             self.source = f"{PATH}/highlight.png"

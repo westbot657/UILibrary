@@ -65,11 +65,10 @@ class TextBox(UIElement):
         return "".join(self._letters)
 
     def set_content(self, content:str="") -> None:
-        self._letters = [l if l != "\n" else " " for l in content if]
+        self._letters = [l if l != "\n" else " " for l in content]
         #self.surface = self.font.render(content, True, self.text_color)
         self.cursor_location = min(self.cursor_location, len(self._letters))
         self._text_selection_start = self._text_selection_end = None
-
 
     def refresh_highlight(self):
         if self._text_selection_start and self._text_selection_end:
@@ -219,4 +218,4 @@ class TextBox(UIElement):
             h = self.font.render(self.get_content()[0:self.cursor_location], True, (0, 0, 0)) # This is not shown on screen, only used to get width
             editor.screen.blit(self._cursor_surface, (X+self.x+h.get_width(), Y+self.y+2))
 
-    def on_enter(self, text:str): ... # pylint: disable=unused-argument
+    def on_enter(self, text:str) -> None: ... # pylint: disable=unused-argument

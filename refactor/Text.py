@@ -21,7 +21,7 @@ class Text(UIElement):
         assert min_width >= 1, "Min width must be 1 or more"
         self.x = x
         self.y = y
-        self.content = self._content = content
+        self.content = self._content = content.replace("\n", " ")
         self.min_width = min_width
         self.text_color = Color.color(text_color)
         self.text_bg_color = Color.color(text_bg_color)

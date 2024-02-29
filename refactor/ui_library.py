@@ -25,7 +25,9 @@ from pygame._sdl2.video import Window, Texture # pylint: disable=no-name-in-modu
 
 # import components
 from Options import PATH, FONT, SETTINGS, TEXT_SIZE, \
-    TEXT_COLOR, TEXT_BG_COLOR, TEXT_HIGHLIGHT, TAB_SIZE
+    TEXT_COLOR, TEXT_BG_COLOR, TEXT_HIGHLIGHT, TAB_SIZE, \
+    TEXT_BG_COLOR_LIGHTER, BUTTON_HOVER_COLOR, POPUP_FADE_COLOR, \
+    START_RESOLUTION, LINE_SEPERATOR_COLOR, BUTTON_CLICK_COLOR
 from Util import expand_text_lists, \
     rotate, rotate3D, rotate3DV, \
     quad_to_tris, invert_tris, \
@@ -39,7 +41,7 @@ from MultilineText import MultilineText
 from TextBox import TextBox
 from MultilineTextBox import MultilineTextBox
 from Geometry import Box, Polygon, Poly3D
-from Organizers import LayeredObjects, Draggable, Resizable, Tie, Link
+from Organizers import LayeredObjects, Draggable, Resizable, Link
 from FunctionalElements import Button, Tabs, Scrollable, Collapsable
 from NumberedTextArea import NumberedTextArea
 
@@ -62,13 +64,13 @@ class ContextTree(UIElement):
     def new(cls, x, y, width, height, label, *args, **kwargs) -> Button:
         """See ContextTree.__init__() for args/kwargs"""
         _m = cls(*args, **kwargs)
-        m = Button(x, y, width, height, label, hover_color=SETTINGS["button_hover_color"], click_color=SETTINGS["button_hover_color"])
+        m = Button(x, y, width, height, label, hover_color=BUTTON_HOVER_COLOR, click_color=BUTTON_CLICK_COLOR)
         m.on_left_click = _m
         _m.parent = m
         m.children.append(_m)
         return m
     
-    def __init__(self, tree_fields, width, option_height, text_color=TEXT_COLOR, bg_color=TEXT_BG_COLOR, line_color=SETTINGS["line_seperator_color"], text_size=TEXT_SIZE, hover_color=TEXT_BG_COLOR, click_color=TEXT_BG_COLOR):
+    def __init__(self, tree_fields, width, option_height, text_color=TEXT_COLOR, bg_color=TEXT_BG_COLOR, line_color=LINE_SEPERATOR_COLOR, text_size=TEXT_SIZE, hover_color=TEXT_BG_COLOR, click_color=TEXT_BG_COLOR):
         self.visible = False
         self.width = width
         self.option_height = option_height
@@ -310,7 +312,7 @@ class Popup(UIElement):
         self.width = width
         self.height = height
         self.children = []
-        self.mask = Button(0, 20, 1, 1, "", SETTINGS["popup_fade_color"], hover_color=SETTINGS["popup_fade_color"])
+        self.mask = Button(0, 20, 1, 1, "", POPUP_FADE_COLOR, hover_color=POPUP_FADE_COLOR)
         self.mask.on_left_click = self._mask_on_click
         self.bg = Button(0, 0, self.width, self.height, bg_color=TEXT_BG_COLOR, hover_color=TEXT_BG_COLOR)
         self._on_close = self._default_on_close
@@ -376,7 +378,7 @@ class Popup(UIElement):
 
 class Editor:
 
-    def __init__(self, caption, icon=None, width=SETTINGS["start_resolution"][0], height=SETTINGS["start_resolution"][1]) -> None:
+    def __init__(self, caption, icon=None, width=START_RESOLUTION[0], height=START_RESOLUTION[1]) -> None:
         self.screen:pygame.Surface = None
         self.caption = caption
         self.icon = icon
@@ -552,7 +554,7 @@ class FileEditor(UIElement):
         with open(self.file_location, "r+", encoding="utf-8") as f:
             self.contents = f.read()
         
-        self.edit_area = NumberedTextArea(self.x, self.y, self.width, self.height, text_bg_color=SETTINGS["text_bg_color_lighter"], scroll_speed=45)
+        self.edit_area = NumberedTextArea(self.x, self.y, self.width, self.height, text_bg_color=TEXT_BG_COLOR_LIGHTER, scroll_speed=45)
         self.edit_area.set_content(self.contents)
         self.edit_area.editable.save_history()
         self.edit_area.editable.on_save(self.save_file)
@@ -717,11 +719,11 @@ class WindowFrame(UIElement):
         self.children.append(self.left_drag)
         self.right_drag = Box(width-5, 20, 5, height-25, TEXT_BG_COLOR)
         self.children.append(self.right_drag)
-        self.top_bar_line = Box(0, 20, width, 1, SETTINGS["button_hover_color"])
+        self.top_bar_line = Box(0, 20, width, 1, BUTTON_HOVER_COLOR)
         self.children.append(self.top_bar_line)
         self.bottom_bar = Box(5, height-20, width-10, 15, TEXT_BG_COLOR)
         self.children.append(self.bottom_bar)
-        self.bottom_bar_line = Box(0, height-21, width, 1, SETTINGS["button_hover_color"])
+        self.bottom_bar_line = Box(0, height-21, width, 1, BUTTON_HOVER_COLOR)
         self.children.append(self.bottom_bar_line)
         self.top_bar = Box(0, 0, width, 20, TEXT_BG_COLOR)
         self.children.append(self.top_bar)
@@ -730,7 +732,7 @@ class WindowFrame(UIElement):
         else:
             self.top_bar_icon = Image(f"{PATH}/ui_lib_icon.png", 2, 2, 16, 16)
         self.children.append(self.top_bar_icon)
-        self.minimize_button = Button(width-(26*3), 0, 26, 20, " ─ ", TEXT_BG_COLOR, hover_color=SETTINGS["button_hover_color"])
+        self.minimize_button = Button(width-(26*3), 0, 26, 20, " ─ ", TEXT_BG_COLOR, hover_color=BUTTON_HOVER_COLOR)
         self.minimize_button.on_left_click = self.minimize
         self.children.append(self.minimize_button)
         self._is_fullscreen = False
@@ -955,7 +957,7 @@ if __name__ == "__main__":
     # from threading import Thread
     # import traceback
 
-    editor = Editor("App name", None, *SETTINGS["start_resolution"]) # name, icon location, width, height
+    editor = Editor("App name", None, *START_RESOLUTION) # name, icon location, width, height
     
     # def inp_thread():
     #     while not editor.running: pass
@@ -976,7 +978,7 @@ if __name__ == "__main__":
     # ]
 
 
-    frame = WindowFrame(*SETTINGS["start_resolution"], editor)
+    frame = WindowFrame(*START_RESOLUTION, editor)
 
     editor.layers[0] += [
         frame

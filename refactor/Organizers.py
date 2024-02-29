@@ -11,7 +11,7 @@ class LayeredObjects(UIElement):
         "x", "y", "layers"
     ]
     
-    def __init__(self, layers:dict, x:int=0, y:int=0):
+    def __init__(self, layers:dict[int, list[UIElement]], x:int=0, y:int=0):
         self.layers = layers
         self.x = x
         self.y = y
@@ -39,7 +39,7 @@ class Draggable(UIElement):
         "lock_horizontal", "lock_vertical"
     ]
     
-    def __init__(self, x, y, width, height, lock_horizontal=False, lock_vertical=False, children=[]):
+    def __init__(self, x:int, y:int, width:int, height:int, lock_horizontal:bool=False, lock_vertical:bool=False, children:list[UIElement]=...):
         self.x = x
         self.y = y
         self.width = width
@@ -48,11 +48,11 @@ class Draggable(UIElement):
         self.hovered = False
         self.hx = 0
         self.hy = 0
-        self.children = children
+        self.children = children if children != ... else []
         self.lock_horizontal = lock_horizontal
         self.lock_vertical = lock_vertical
     
-    def _event(self, editor, X, Y):
+    def _event(self, editor, X:int, Y:int):
 
         _x, _y = editor.mouse_pos
 
@@ -93,7 +93,7 @@ class Draggable(UIElement):
             if not self.lock_horizontal: self.x = (_x - self.hx) - X
             if not self.lock_vertical: self.y = (_y - self.hy) - Y
 
-    def _update(self, editor, X, Y):
+    def _update(self, editor, X:int, Y:int):
         for child in self.children:
             child._update(editor, X + self.x, Y + self.y)
 
@@ -192,48 +192,6 @@ class Resizable(Draggable):
         self.bg._update(editor, X + self.x, Y + self.y)
 
 
-
-class Tie(UIElement):
-
-    __slots__ = [
-        "controller", "child", "size_only"
-    ]
-
-    @classmethod
-    def group(cls, ties):
-        ret = []
-        for g in ties:
-            ret.append(cls(g[0], g[1], g[2] if len(g) == 3 else True))
-        return ret
-
-    def __init__(self, controller, child, size_only=True):
-        self.controller = controller
-        self.child = child
-        self.size_only = size_only
-
-    def _update(self, editor, X, Y): # pylint: disable=unused-argument
-        ...
-    def _event(self, editor, X, Y): # pylint: disable=unused-argument
-        if not self.size_only:
-            if hasattr(self.controller, "get_x"):
-                self.child.x = self.controller.get_x()
-            elif hasattr(self.controller, "x"):
-                self.child.x = self.controller.x
-            
-            if hasattr(self.controller, "get_y"):
-                self.child.y = self.controller.get_y()
-            elif hasattr(self.controller, "y"):
-                self.child.y = self.controller.y
-
-        if hasattr(self.controller, "get_width"):
-            self.child.width = self.controller.get_width()
-        elif hasattr(self.controller, "width"):
-            self.child.width = self.controller.width
-
-        if hasattr(self.controller, "get_height"):
-            self.child.height = self.controller.get_height()
-        elif hasattr(self.controller, "height"):
-            self.child.height = self.controller.height
 
 class Link(UIElement):
     """
