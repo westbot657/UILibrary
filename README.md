@@ -419,10 +419,31 @@ Used to get input from the user.
 
 #### Methods:
 
+`pre_blit(editor: Editor, X: int, Y:int) -> None`  
+re-assign this function to whatever. This function is called immediately before the button renders.  
+
+`on_left_click(editor: Editor) -> None`,  
+`off_left_click(editor: Editor) -> None`,  
+`on_right_click(editor: Editor) -> None`,  
+`off_right_click(editor: Editor) -> None`,  
+`on_hover(editor: Editor) -> None`,  
+`off_hover(editor: Editor) -> None`  
+re-assign these methods to hook into their respective events.  
+
+
 
 ---
 ### Tabs(UIElement)
+Used for creating page tabs similar to a web-browsed or IDE.  
 ### Init Arguments:
+`x: int`: x position.  
+`y: int`: y position.  
+`width: int`: width of the tab content area.  
+`height: int`: height of the tab content area.  
+`tab_style: Tabs.Style`: what style tabs are displayed in.  
+Tabs.Style is an Enum containing `TOP`, `BOTTOM`, `LEFT`, `RIGHT`, and `MENU`.  
+[tab style examples](./tab_style_examples.png)
+
 #### Attributes:
 #### Methods:
 
