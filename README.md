@@ -442,7 +442,12 @@ Used for creating page tabs similar to a web-browsed or IDE.
 `height: int`: height of the tab content area.  
 `tab_style: Tabs.Style`: what style tabs are displayed in.  
 Tabs.Style is an Enum containing `TOP`, `BOTTOM`, `LEFT`, `RIGHT`, and `MENU`.  
-[tab style examples](./tab_style_examples.png)
+<img src="./tab_style_examples.png" alt="Tab STyle Examples" width=50% />  
+
+`tab_data: dict[str: list[UIElement]]`: mapping of tab names, and the content associated with that tab.  
+
+`**options`:
+
 
 #### Attributes:
 #### Methods:
